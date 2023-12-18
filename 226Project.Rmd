@@ -1,0 +1,628 @@
+---
+title: "226 Project"
+output: pdf_document
+header-includes:
+  - \usepackage{color}
+  - \usepackage{framed}
+  - \setlength{\fboxsep}{.8em}
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+```{r}
+library(pROC)
+library(ROCR)
+library(haven)
+library(tidyverse)
+library(googledrive)
+require("data.table")
+require("bit64")
+library(ggplot2)
+library(caret)
+library(pROC)
+library(randomForest)
+library(e1071)
+library(rpart)
+library(rpart.plot)
+library(cvTools)
+library(Matrix)
+library(gbm)
+```
+
+
+```{r}
+install.packages("rpart.plot")
+```
+
+
+```{r}
+data <- read_csv("/Users/vlad/Downloads/pu2019.csv",  col_select = c("SSUID"))
+# data <- read_sas("/Users/vlad/Downloads/pu2019.sas7bdat", col_select = COLUMNS)
+```
+look at if they dumped their 401k into their IRA !
+90 % of people who cliamed they were of hispanic origin claimed the race option : white alone, I created new race category
+
+```{r}
+# Eorigin is Spanish, Hispanic, Latino 
+# RFAMKIND FOR TYPE OF FAMILY
+# EPR SCRNR EVER HAD HEALTH DURING THE TIME
+# TJB1_GAMT1 GROSS ANNUAL AMOUNT BEFORE TAXES FOR THOSE WHO WERE PAID 
+# SUM TUC1, 2 AND 3. SUM TRET1AMT
+# WITH ELMPNOW BEGIN FINANCE STUFF
+# ERATANY AS PREDICTOR VARIABLE?
+# eoowngovs is individual not including joint 
+# TOGOVSINC begin individual totals
+# TINC_BANK total interest earned per person, THINC_BANK household
+# household stock adn mutual funds THINC_STMF
+# TINC_AST total asset earned 
+# TEQ_RENT asset - liaglities in renatal properties
+# # # TVAL_RET Person-level sum of value of retirement accounts (TTHR401VAL, TIRAKEOVAL). 
+# TCBYR_1 age child was born, create has young child 
+# ENJ_NOWRK4 is retired in month 12 , ENJFLAG
+# use TPTOTINC - TINC_AST - TPTRNINC - TPOTHINC, 
+ERACE_VALS <- c("White", "Black", "Asian", "Other (Non-Hispanic)", "Hispanic")
+
+
+COLUMNS <- c("SSUID","SHHADID","PNUM", "SPANEL", "SWAVE","MONTHCODE", "EOWN_MF","THHLDSTATUS","ERESIDENCEID","EREFPAR", "TLIVQTR", "ETENURE", "ESEX","TAGE","EORIGIN", "ERACE","ESPEAK","EAF_HHLD","RAFEVER","EMS","EPNSPOUSE","EPNPAR1","EPNPAR2","EBORNUS","ECITIZEN","ENATCIT", "TYRENTRY","TIMSTAT","TLANG1","EHOWWELL","EEDUC","RLNGISOL","RFAMKIND","RFPERSONS", "TCEB", "RFRELU18","TRACE","TBORNPLACE","EDCPRTCPTN","TDPCAREAMT","EPROCERT","EWHOCERT1","EWHOCERT2","EWHOCERT3","EWHOCERT4","ECERT","EXMAR","EVERWID","EVERDIV","EPAR_SCRNR","EPR_SCRNR","TPRVLVQRT","TEHC_REGION","TEHC_ST","TEHC_METRO","TRESDUR","EEDCRED","EEDGREP","RGED","EJB1_CLWRK", "EJB2_CLWRK", "EJB3_CLWRK", "EJB4_CLWRK", "EJB5_CLWRK", "EJB6_CLWRK", "EJB7_CLWRK",  "TJB1_IND", "TJB2_IND", "TJB3_IND", "TJB4_IND", "TJB5_IND", "TJB6_IND", "TJB7_IND", "TJB1_OCC", "TJB2_OCC", "TJB3_OCC", "TJB4_OCC", "TJB4_OCC", "TJB5_OCC", "TJB6_OCC", "TJB7_OCC",  "EJB1_UNION","EJB1_EMPLOC","TJB1_EMPALL","EJB1_TYPPAY5", "EJB1_JBORSE", "EJB2_JBORSE", "EJB3_JBORSE", "EJB4_JBORSE", "EJB5_JBORSE", "EJB6_JBORSE", "EJB7_JBORSE", "ENJFLAG", "TBUS_INV_NUM", "TPEARN", "EJB1_TYPPAY1","TJB1_GAMT1","TJB1_ANNSAL1","TJB1_HOURLY1","TJB1_WKLY1","TJB1_BWKLY1","TJB1_MTHLY1","TJB1_SMTHLY1","TJB1_OTHER1","EJB1_PVWKTRT","EJB1_PVTRPRM","TJB1_PVTIME","TJB1_PVMILE","EJB1_PVPARK","TJB1_PVPARKC","TJB1_PVOTHRC","EJB1_WSWHSUN","EJB1_WSWHSAT","EJB1_WSJOB","RJB1_COMMTYP","EJB1_DYSWKD","RSSI_MNYN","RHLTHMTH","EUCANY","TUC1AMT","TUC2AMT","TUC3AMT","TSSSAMT","EDISABL","ELMPNOW","TLMPAMT","EROLLOVR1","TROLLAMT", "TVAL_BUS", "TLIFE_CVAL", "TVAL_RE", "TDEFERAMT","EDISTYP1YN","ERETANY","TRET1AMT","TRET2AMT","TRET3AMT","TRET4AMT","TRET5AMT","TRET6AMT","TRET7AMT","TRET8AMT","EOTHSUPRT1YN","EOTHSUPRT2YN","EOTHSUPRT3YN","TKIDTOTAMT","TPARTOTAMT","TORTOTAMT","EFILING","EFSTATUS","EDEPCLM","EMINC_TYP1YN","EMINC_TYP2YN","EMINC_TYP3YN","EMINC_TYP4YN","EOWN_IRAKEO","EOWN_THR401","EOWN_PENSION","ERET_LUMPSUM","TDRAW_AMT","EOWN_GOVS","EOWN_CHK","EOWN_SAV","EOWN_MM","EOWN_CD","EOWN_ST","EOWN_MCBD","EOWN_LIFE","EOWN_RP","EOWN_RE","EOWN_ANNTR","EOWN_BSI","EOWN_OINV","EJSOWNGOVS","EJSOWNCHK","EJSOWNSAV","EJSOWNMM","EJSOWNCD","EJSOWNMCBD","EOOWNGOVS","EOOWNCHK","EOOWNSAV","EOOWNMM","EOOWNCD","EOOWNMCBD", "EOOWNMF","EJSOWNMF","EJSOWNST", "EOOWNST", "EOWN_ESAV","TESAV_NUM","TVEH1_YEAR","TVEH1VAL","EREC_MCYC","EREC_BOAT","EREC_RV","TIRAKEOVAL","TTHR401VAL","TJSGOVSINC","TJSSAVINC","TJSMMINC","TJSCDINC","TJSMCBDINC","TOGOVSINC","TOSAVINC","TOMMINC","TOCDINC","TOMCBDINC","TJSCHKVAL","TJSSAVVAL", "TJOCHKVAL", "TOCHKVAL","TOSAVVAL","TJSMMVAL","TJSCDVAL","TOMMVAL","TOCDVAL","TJSGOVSVAL","TJSMCBDVAL","TOGOVSVAL","TOMCBDVAL","TJSMFINC","TJSSTINC","TOMFINC","TOSTINC","TJSMFVAL","TOMFVAL","TJSSTVAL","TOSTVAL","TMHVAL","TMHLOANAMT","TPRVAL","TPRLOANAMT","TPRLOAN1YRS","EPRLOAN1RATE","EPRLOAN1FXVR","TRENTMORT","TLIFE_FVAL","TESAV1VAL","TJSRPGROINC","TORPGROINC","TORPVAL","TVEH1DEBTVAL","TANNINC","TANNVAL","TTRINC","TTRVAL","TJSCCDEBTVAL","TOCCDEBTVAL","EJSEDDEBT","TOEDDEBTVAL","TMED_AMT","EASTRECUSE","TINC_BANK","TVISDENT", "TVISDOC", "THIPAYC", "RDIS", "EMPF" , "TCBYR_1", "ENJ_NOWRK4", "TAGE_FB","TNUM_CBU","EBIOMOMUS","EBIODADUS","TBIOMOMNAT","TBIODADNAT", "TPAYWK", "EPAY", "EGIFTED","ELESSON","ERELIG", "EAWBSAFE", "TPOTHINC",  "THINC_BANK","TINC_BOND","THINC_BOND","TINC_STMF","THINC_STMF","TINC_RENT","THINC_RENT","TINC_OTH","THINC_OTH","TINC_AST","THINC_AST","TVAL_BANK","THVAL_BANK","TVAL_BOND","THVAL_BOND","TVAL_STMF","THVAL_STMF","TVAL_RENT","THVAL_RENT","TEQ_RENT","THEQ_RENT","TEQ_RE","THEQ_RE","TVAL_OTH","THVAL_OTH","TVAL_RET","THVAL_RET","TEQ_BUS","THEQ_BUS","TVAL_ESAV","THVAL_ESAV","THVAL_HOME","TEQ_HOME","THEQ_HOME","TDEBT_CC","THDEBT_CC","TDEBT_ED","THDEBT_ED","TDEBT_OT","THDEBT_OT","TDEBT_AST","THDEBT_AST","TVAL_AST","THVAL_AST","TNETWORTH","THNETWORTH","TVAL_RMU","THVAL_RMU","TFTOTINCT2","TFTOTINC","THTOTINC","THTOTINCT2","TPTRNINC","TPPRPINC","TPTOTINC")
+
+meds_and_sd <- c("TIRAKEO_MED","TIRAKEO_STD","TTH401_MED","TTH401_STD","TOMFVL_STD","TOMFVL_MED")
+
+```
+
+
+```{r}
+#                                                           data cleaning
+
+is.prone <- function(x) is.factor(x) | is.character(x)
+# ENJ_NOWRK4, TINC_AST, TPTRNINC, TSSSAMT, TPOTHINC, MONTHCODE, TAGE, ENJFLAG
+ DEMS <- c("ESEX","TAGE", "ERACE" ,"TRACE","EORIGIN","EEDUC", "TCEB", "ESPEAK", "EHOWWELL")
+ INDUSTRY <- c("TJB1_IND", "TJB2_IND", "TJB3_IND", "TJB4_IND", "TJB5_IND", "TJB6_IND", "TJB7_IND")
+ OCCUPATION <- c("TJB1_OCC", "TJB2_OCC", "TJB3_OCC", "TJB4_OCC", "TJB4_OCC", "TJB5_OCC", "TJB6_OCC", "TJB7_OCC")
+ CLWORKER <- c("EJB1_CLWRK", "EJB2_CLWRK", "EJB3_CLWRK", "EJB4_CLWRK", "EJB5_CLWRK", "EJB6_CLWRK", "EJB7_CLWRK")
+ CHECKING <- c("TJSCHKVAL", "TJOCHKVAL", "TOCHKVAL")
+ INVEST_ASSETS <- c("TVAL_BANK", "TVAL_BOND", "TVAL_RENT", "TVAL_OTH", "TIRAKEOVAL", "TVAL_STMF", "TVAL_BUS", "EOWN_RP")
+ FIN_COVS <- c("TVAL_RE", "TLIFE_CVAL", "TTHR401VAL", "TVAL_ESAV", "TDEBT_CC", "TDEBT_ED")
+ 
+cleaned_data <- data %>% 
+  select(SSUID, PNUM, MONTHCODE, ENJFLAG, ENJ_NOWRK4, FIN_COVS,DEMS, TPEARN, INDUSTRY, OCCUPATION,CLWORKER, CHECKING, INVEST_ASSETS) %>% 
+  filter(TAGE > 15) %>% 
+  mutate(across(everything(), ~ ifelse(. == "", NA, .))) %>% 
+  group_by(SSUID, PNUM) %>% 
+  mutate(MEAN_TPEARN = mean(TPEARN,na.rm = TRUE)) %>%
+  slice_tail(n=1) %>%
+  ungroup() %>%
+  filter(MONTHCODE == 12) %>% 
+  mutate(CLWRK = coalesce(EJB1_CLWRK, EJB2_CLWRK, EJB3_CLWRK, EJB4_CLWRK, EJB5_CLWRK, EJB6_CLWRK, EJB7_CLWRK)) %>%
+  mutate(IND = coalesce(TJB1_IND, TJB2_IND, TJB3_IND, TJB4_IND, TJB5_IND, TJB6_IND, TJB7_IND)) %>%
+  mutate(OCC = coalesce(TJB1_OCC, TJB2_OCC, TJB3_OCC, TJB4_OCC, TJB4_OCC, TJB5_OCC, TJB6_OCC, TJB7_OCC)) %>%
+  mutate(TJSCHKVAL = if_else(is.na(TJSCHKVAL), 0, TJSCHKVAL), TJOCHKVAL = if_else(is.na(TJOCHKVAL), 0, TJOCHKVAL),TOCHKVAL = if_else(is.na(TOCHKVAL), 0, TOCHKVAL)) %>%
+  mutate(TVAL_CHK = TJSCHKVAL + TJOCHKVAL + TOCHKVAL) %>%
+  select(!(INDUSTRY) & !OCCUPATION & !CLWORKER & !CHECKING) %>%
+  mutate(TVAL_BANK = TVAL_BANK - TVAL_CHK) %>%
+  mutate(TVAL_OTH = TVAL_OTH - TLIFE_CVAL) %>% 
+  mutate(TVAL_OTH = if_else(is.na(TVAL_OTH), 0, TVAL_OTH), TIRAKEOVAL = if_else(is.na(TIRAKEOVAL), 0, TIRAKEOVAL),TLIFE_CVAL = if_else(is.na(TLIFE_CVAL), 0, TLIFE_CVAL)) %>%
+  mutate(OCC = case_when(
+    OCC >= 0 & OCC <= 0500 ~ "Managerial Positions",
+    OCC >= 0510 & OCC <= 0530 ~ "Purchasing Agents",
+    OCC >= 0540 & OCC <= 0600 ~ "Claims Adjusters",
+    OCC >= 0630 & OCC <= 0640 ~ "HR and Development",
+    OCC >= 0630 & OCC <= 0650 ~ "Claims Adjusters",
+    OCC >= 0700 & OCC <= 0726 ~ "Logistician and Management Analyst",
+    OCC >= 0735 & OCC <= 0750 ~ "Business Analyst",
+    OCC >= 0800 & OCC <= 0830 ~ "Accounting and Appraisels",
+    OCC >= 0845 & OCC <= 0900 ~ "Financial Analysts",
+     OCC >= 0910 & OCC <= 0960 ~ "Tax agents and loan officers",
+     OCC >= 1005 & OCC <= 1108 ~ "Computer Software/Hardware",
+     OCC >= 1200 & OCC <= 1240 ~ "Mathematical Science",
+     OCC >= 1305 & OCC <= 1310 ~ "Architecture",
+     OCC >= 1320 & OCC <= 1530 ~ "Engineers",
+     OCC >= 1541 & OCC <= 1545 ~ "Drafters",
+     OCC >= 1551 & OCC <= 1560 ~ "Technician",
+     OCC >= 0845 & OCC <= 0900 ~ "Financial Analysts",
+     OCC >= 1600 & OCC <= 1650 ~ "Life Scientists",
+     OCC >= 1700 & OCC <= 1760 ~ "Physical Scientist",
+     OCC >= 1800 & OCC <= 1860 ~ "Social Scientist",
+    OCC >= 1900 & OCC <= 1980 ~ "Science Technician",
+    OCC >= 2001 & OCC <= 2011 ~ "Counselors and Social Workers",
+    OCC >= 2011 & OCC <= 2025 ~ "Social Scientist",
+    OCC >= 2040 & OCC <= 2060 ~ "Religious Worker",
+    OCC >= 2100 & OCC <= 2180 ~ "Legal",
+    OCC >= 2205 & OCC <= 2360 ~ "Education",
+    OCC >= 2400 & OCC <= 2555 ~ "Library Assistant ",
+    OCC >= 2600 & OCC <= 2640 ~ "Designers and Artists",
+    OCC >= 2700 & OCC <= 2710 ~ "Producer and Director",
+    OCC >= 2721 & OCC <= 2723 ~ "Athletics",
+    OCC >= 2740 & OCC <= 2805 ~ "Music and Entertainment",
+    OCC >= 2810 & OCC <= 2920 ~ "Media and Communication",
+ OCC >= 3000 & OCC <= 3250 ~ "Doctors and Vets",
+  OCC >= 3255 & OCC <= 3550 ~ "Medical Technicians and Nurses",
+  OCC >= 3601 & OCC <= 3655 ~ "Health Care Support Workers",
+  OCC >= 3700 & OCC <= 3960 ~ "Protective Service Workers",
+  OCC >= 4000 & OCC <= 4160 ~ "Food Service",
+  OCC >= 4200 & OCC <= 4230 ~ "Housekeeping and Janitors",
+  OCC >= 4240 & OCC <= 4255 ~ "Grounds Maintenance Workers",
+  OCC >= 4330 & OCC <= 4435 ~ "Entertainment attendands",
+  OCC >= 4461 & OCC <= 4465 ~ "Mortician and Funeral Workers",
+  OCC >= 4500 & OCC <= 4525 ~ "Personal Appereance",
+  OCC >= 4530 & OCC <= 4540 ~ "Travel",
+  OCC >= 4600 & OCC <= 4655 ~ "Personal care and service workers",
+  OCC >= 4700 & OCC <= 4965 ~ "Sales, Retail, and Advertising",
+  OCC >= 5000 & OCC <= 5165 ~ "Financial Clerk",
+  OCC >= 5220 & OCC <= 5420 ~ "Information and Record Clerks",
+  OCC >= 5500 & OCC <= 5860 ~ "Office and Postal Service Clerk",
+  OCC >= 5900 & OCC <= 5940 ~ "Administrative Support Workers",
+  OCC >= 6005 & OCC <= 6130 ~ "Agricultural, Logging, Fishing",
+  OCC >= 6200 & OCC <= 6950 ~ "Construction and Mining Trade Workers",
+  OCC >= 7000 & OCC <= 7640 ~ "Mechanics, Technical Trades",
+  OCC >= 7700 & OCC <= 7750 ~ "Assemblers and Fabricators",
+  OCC >= 7800 & OCC <= 7855 ~ "Food Processing",
+  OCC >= 7905 & OCC <= 8025 ~ "Machine Operators",
+  OCC >= 8030 & OCC <= 8225 ~ "Metal and Plastic Workers",
+  OCC >= 8250 & OCC <= 8465 ~ "Textile, Apparel, and Furnishing",
+  OCC >= 8500 & OCC <= 8555 ~ "Woodworkers",
+  OCC >= 8600 & OCC <= 8650 ~ "Plant System Operators and Chemical Processing",
+  OCC >= 8710 & OCC <= 8750 ~ "Cutting, Jewelry",
+  OCC >= 8760 & OCC <= 8990 ~ "Miscellanious Production Workers",
+  OCC >= 9005 & OCC <= 9050 ~ "Aviation",
+  OCC >= 9110 & OCC <= 9150 ~ "Drivers",
+  OCC >= 9210 & OCC <= 9265 ~ "Railroad",
+  OCC >= 9300 & OCC <= 9310 ~ "Shipping",
+  OCC >= 9350 & OCC <= 9430 ~ "Transportation",
+  OCC >= 9510 & OCC <= 9760 ~ "Material Moving Workers",
+  OCC == 9840 ~ "Military",
+    TRUE ~ OCC
+  )) %>%
+   arrange(SSUID) 
+  # filter(EORIGIN == 1) %>% 
+  # mutate() %>%
+  # mutate(TPTRNINC = if_else(is.na(TPTRNINC), 0, TPTRNINC)) %>% 
+  # mutate(TPOTHINC = if_else(is.na(TPOTHINC), 0, TPOTHINC)) %>% 
+  # mutate(TSSSAMT = if_else(is.na(TSSSAMT), 0, TSSSAMT)) %>% 
+  # mutate(TEQ_BUS = if_else(is.na(TEQ_BUS), 0, TEQ_BUS)) %>% 
+  
+ 
+cleaned_data
+```
+
+```{r}
+RACE_VALS <- c("WHITE", "ASIAN", "BLACK", "AMERICAN INDIAN", "LATINX")
+cleaned_data %>% 
+  mutate(TRACE = ifelse(EORIGIN == 1, 11, TRACE)) %>% 
+  mutate(TRACE = ifelse(TRACE >= 6 & TRACE <= 10, 12, TRACE)) %>% 
+  filter(TRACE != 5, TRACE != 12) %>% 
+  mutate(MEAN_TPEARN = ifelse(is.na(MEAN_TPEARN), 0, MEAN_TPEARN)) %>% 
+  mutate(TTHR401VAL = ifelse(is.na(TTHR401VAL),0, TTHR401VAL)) %>% 
+  mutate(RETIRE_VAL = TIRAKEOVAL + TVAL_STMF + TVAL_BOND + TTHR401VAL) %>% 
+  mutate(EOWN_RP = ifelse(EOWN_RP == 2, 0, 1)) %>% 
+  select(MEAN_TPEARN, TRACE, RETIRE_VAL , TTHR401VAL, EOWN_RP) %>% 
+  mutate(RETIRE_VAL = ifelse(RETIRE_VAL > 0, 1, 0)) %>%
+  group_by(TRACE) %>%
+  summarize(mean_val = mean(RETIRE_VAL))  %>%
+  arrange(desc(mean_val)) %>%
+  mutate(mean_val = round(mean_val * 100, 1)) %>% 
+  mutate(TRACE = factor(TRACE, levels = TRACE)) %>%
+  ggplot(aes(x = (TRACE), y = mean_val, fill = TRACE)) +
+  geom_bar(stat = "identity", position = "stack", width = .6, color = "black") +
+  # geom_text(aes(label = scales::percent(mean_val, scale = 1)),
+  #           vjust = -0.5, hjust = 0.5, size = 3) +
+  scale_x_discrete(labels = RACE_VALS) +
+  # labs( x = "Race or Origin" , y = "Percentage that own stocks or bonds") +
+   theme(panel.background = element_blank()) +
+  scale_fill_manual(values=c("grey", 
+                             "grey", 
+                             "grey", 
+                             "grey",
+                             "#74b46f")) +
+  guides(fill = FALSE) +
+  theme(axis.text.y = element_text(size = 12)) 
+
+```
+
+
+
+```{r}
+#                                                         summary statistics
+
+# 85% of the data
+non_hispanic <- cleaned_data %>% 
+  filter(EORIGIN == 2) 
+hispanic <- cleaned_data %>% #15 %
+  filter(EORIGIN == 1)
+
+NH_totals <- non_hispanic %>% group_by(ERACE) %>% summarise(total_BANK = sum(TVAL_BANK), total_BOND = sum(TVAL_BOND), total_RENT = sum(TVAL_RENT),  total_OTH = sum(TVAL_OTH), total_IRA = sum(TIRAKEOVAL),  total_STMF = sum(TVAL_STMF), total_BUS = sum(TVAL_BUS))
+
+hispanic_c <- hispanic %>% summarise(total_BANK = sum(TVAL_BANK), total_BOND = sum(TVAL_BOND), total_RENT = sum(TVAL_RENT),  total_OTH = sum(TVAL_OTH), total_IRA = sum(TIRAKEOVAL),  total_STMF = sum(TVAL_STMF), total_BUS = sum(TVAL_BUS))
+
+new_col <- c(5)
+hispanic_c <- cbind(new_col, hispanic_c)
+colnames(hispanic_c)[1] <- "ERACE"  # Rename the new column
+
+hispanic_c
+
+
+NH_totalsc <- rbind(NH_totals, hispanic_c)
+
+row_sums <- rowSums(NH_totalsc[, 2:ncol(NH_totalsc)])
+
+NH_totalsc[, 2:ncol(NH_totalsc)] <- round((NH_totalsc[, 2:ncol(NH_totalsc)] / row_sums * 100),3)
+
+NH_totalsc
+
+df_long <- reshape2::melt(NH_totalsc, id.vars = "ERACE")
+
+# Plot the bar graph using ggplot2
+ggplot(df_long, aes(x = factor(ERACE), y = value, fill = variable)) + 
+  geom_bar(stat = "identity", position = "stack", width = .6, color = "black") +
+  scale_x_discrete(labels = ERACE_VALS) +
+  
+  labs(title = "Distribution of Investment Classes by Race or Origin", x = "Race or Origin" , y = "Percentages", fill = "Asset Type") +
+  theme_dark() +
+  geom_text(aes(label = paste0(round(value), "%")), 
+            position = position_stack(vjust = 0.5), fontface = "bold", size = 4) + 
+  # theme(axis.text.x = element_text(angle = 0, hjust = 1, size = 10, face = "bold")) + 
+  scale_fill_brewer(palette = "Set2",labels = c("Savings, CD, MM", "Bonds", "Rental Properties", "Annuities", "IRA,KEOGH Accounts", "Stocks, Mutual Funds", "Businesses")) 
+  # scale_fill_discrete(labels = c("Savings, CD, MM", "Bonds", "Rental Properties", "Annuities", "IRA,KEOGH Accounts", "Stocks, Mutual Funds", "Businesses"))
+```
+
+```{r}
+
+# NH_totals <- non_hispanic %>% group_by(ERACE) %>% summarise(total_CHECKING = sum(TVAL_CHK),total_BANK = sum(TVAL_BANK), total_BOND = sum(TVAL_BOND), total_RENT = sum(TVAL_RENT),  total_OTH = sum(TVAL_OTH), total_IRA = sum(TIRAKEOVAL),  total_STMF = sum(TVAL_STMF), total_BUS = sum(TVAL_BUS))
+# 
+# hispanic_c <- hispanic %>% summarise(total_CHECKING = sum(TVAL_CHK), total_BANK = sum(TVAL_BANK), total_BOND = sum(TVAL_BOND), total_RENT = sum(TVAL_RENT),  total_OTH = sum(TVAL_OTH), total_IRA = sum(TIRAKEOVAL),  total_STMF = sum(TVAL_STMF), total_BUS = sum(TVAL_BUS))
+# 
+# new_col <- c(5)
+# hispanic_c <- cbind(new_col, hispanic_c)
+# colnames(hispanic_c)[1] <- "ERACE"  # Rename the new column
+# 
+# hispanic_c
+# 
+# 
+# NH_totalsc <- rbind(NH_totals, hispanic_c)
+# 
+# row_sums <- rowSums(NH_totalsc[, 2:ncol(NH_totalsc)])
+# 
+# NH_totalsc[, 2:ncol(NH_totalsc)] <- round((NH_totalsc[, 2:ncol(NH_totalsc)] / row_sums * 100),3)
+# 
+# NH_totalsc
+# 
+# df_long <- reshape2::melt(NH_totalsc, id.vars = "ERACE")
+# 
+# # Plot the bar graph using ggplot2
+# ggplot(df_long, aes(x = factor(ERACE), y = value, fill = variable)) + 
+#   geom_bar(stat = "identity", position = "stack") +
+#   scale_x_discrete(labels = ERACE_VALS) +
+#   labs(title = "Differences in Asset Ownership among Races/Origin", x = "Race/Origin" , y = "Percentages", fill = "Variables") +
+#   geom_text(aes(label = paste0(round(value), "%")), 
+#             position = position_stack(vjust = 0.5)) + 
+#   theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
+#   scale_fill_manual(values = c("R", "B", "G", "P")) +
+```
+
+
+```{r}
+covariates <- c("TVAL_RENT", "TLIFE_CVAL", "TTHR401VAL", "TVAL_ESAV", "TDEBT_CC", "TDEBT_ED", "TVAL_RENT", "TVAL_BANK","TVAL_OTH", "TVAL_BUS", "ESEX", "TAGE", "ERACE", "EEDUC", "TCEB" , "EHOWWELL", "MEAN_TPEARN", "CLWRK", "OCC", "TVAL_CHK")
+
+# "IND"
+
+cov_matrix <- cleaned_data %>% 
+  mutate(TTHR401VAL = if_else(is.na(TTHR401VAL),0, TTHR401VAL)) %>% 
+  mutate(TVAL_STOCKBOND = TVAL_STMF + TVAL_BOND + TIRAKEOVAL) %>% 
+  filter(EORIGIN == 1, ENJFLAG == 2) %>% 
+  mutate(OWNS_BUS = ifelse(TVAL_BUS != 0, "yes", "no")) %>% 
+  # mutate(TVAL_STOCK_BOND = ifelse(TVAL_BUS != 0, "yes", "no")) %>% 
+  mutate(EHOWWELL = if_else(is.na(EHOWWELL), 1, EHOWWELL)) %>% 
+  mutate(OWN_STOCK_BOND = ifelse(TVAL_STOCKBOND > 0, 1, 0)) %>% 
+  select(covariates, TVAL_STOCKBOND, OWN_STOCK_BOND) 
+
+cov_matrix$ESEX <- factor(cov_matrix$ESEX)
+cov_matrix$ERACE <- factor(cov_matrix$ERACE)
+cov_matrix$EEDUC <- factor(cov_matrix$EEDUC)
+cov_matrix$EHOWWELL <- factor(cov_matrix$EHOWWELL)
+cov_matrix$CLWRK <- factor(cov_matrix$CLWRK)
+# cov_matrix$IND <- factor(cov_matrix$IND)
+cov_matrix$OCC <- factor(cov_matrix$OCC)
+
+mean_TCEB <- mean(cov_matrix$TCEB[!is.na(cov_matrix$TCEB)])
+
+# Impute missing values in column "y" with the mean
+cov_matrix$TCEB[is.na(cov_matrix$TCEB)] <- mean_TCEB
+
+M = round(nrow(cov_matrix) * .8)
+in.train = sample(nrow(cov_matrix), size = M)
+train = cov_matrix[in.train, ]
+test = cov_matrix[-in.train, ]
+
+
+```
+
+
+```{r}
+train_X <- train[1:(ncol(train)-2)]
+train_cont_y <- train$TVAL_STOCKBOND
+train_bin_y <- train$OWN_STOCK_BOND
+
+test_X <- test[1:(ncol(test)-2)]
+test_cont_y <- test$TVAL_STOCKBOND
+test_bin_y <- test$OWN_STOCK_BOND
+
+
+training_data_contin <-  as.data.frame(cbind(train_cont_y,train_X))
+test_data_contin <-  as.data.frame(cbind(test_cont_y,test_X))
+
+model <- lm(train_cont_y ~., data = training_data_contin)
+
+# id <- sapplya(training_data_contin, is.prone)
+
+# summary(model)
+# 
+# crucial <- predict(model, training_data_contin)
+# sqrt(mean((crucial - train_cont_y)^2))
+
+test_X %>% 
+  filter(TVAL_CHK == 0)
+```
+
+```{r}
+# color_values <- ifelse(training_data_contin$OCC == "Managerial Positions", "red", "blue")
+
+training_data_contin %>%
+  # filter(TVAL_CHK < 5500, train_cont_y < 500000) %>%
+  mutate(IS_MANAGER = ifelse(OCC == "Managerial Positions", "Yes", "No")) %>%
+  ggplot(aes(x = MEAN_TPEARN, y = train_cont_y)) +
+  geom_point() +
+  # scale_color_manual(labels = c('Male', 'Female'), values = c('#619CFF', '#F8766D')) +
+  geom_smooth(method='lm', formula= y ~ x) + 
+  # theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 10, face = "bold")) +
+  labs(x = "Average Monthly Earnings", y = "Total Value of Stocks and Bonds ($)", title = "Figure 1(a): Monthly Earnings and Predictor Variable")
+
+
+
+```
+
+
+```{r}
+# c("TVAL_RENT", "TLIFE_CVAL", "TTHR401VAL", "TVAL_ESAV", "TDEBT_CC", "TDEBT_ED", "TVAL_RENT", "TVAL_BANK","TVAL_OTH", "TVAL_BUS", "ESEX", "TAGE", "ERACE", "EEDUC", "TCEB" , "EHOWWELL", "MEAN_TPEARN", "CLWRK", "OCC", "TVAL_CHK")
+
+# training_data_contin_transform <- training_data_contin %>% 
+  # mutate(MEAN_TPEARN = ifelse(MEAN_TPEARN <= 0, 0.0001, MEAN_TPEARN))
+  
+
+# training_data_contin_transform$MEAN_TPEARN <- log(training_data_contin_transform$MEAN_TPEARN)   lm(train_cont_y ~., data = training_data_contin_transform)
+OLS_transf_model <- lm(train_cont_y ~ TVAL_RENT + TLIFE_CVAL + TTHR401VAL + TVAL_ESAV + TDEBT_CC + TVAL_RENT + TVAL_BANK + TVAL_OTH + TVAL_BUS + ESEX + TAGE + ERACE + EEDUC + TCEB + EHOWWELL + MEAN_TPEARN + CLWRK + OCC + TVAL_CHK + ESEX:TAGE, data = training_data_contin)
+
+transf_train_preds <- predict(OLS_transf_model, training_data_contin)
+# train_preds
+# sqrt(mean((train_cont_y - train_preds)^2))
+sqrt(mean((train_cont_y - transf_train_preds)^2))
+```
+
+```{r}
+library(boot)
+```
+
+
+```{r}
+# Here we explore the transformed OLS model 
+summary(OLS_transf_model)
+# OLS_transf_model_test <- lm(test_cont_y ~ TVAL_RENT + TLIFE_CVAL + TTHR401VAL + TVAL_ESAV + TDEBT_CC + TVAL_RENT + TVAL_BANK + TVAL_OTH + TVAL_BUS + ESEX + TAGE + ERACE + EEDUC + TCEB + EHOWWELL + MEAN_TPEARN + CLWRK + OCC + TVAL_CHK + ESEX:TAGE, data = test_data_contin)
+# summary(OLS_transf_model_test)
+```
+
+```{r}
+n_hypothesis = 63
+p_values 
+```
+
+
+```{r}
+# please_work <- model.matrix(training_data_contin)
+
+func = function(data,idx){
+  fitted = lm(train_cont_y ~ TVAL_RENT + TLIFE_CVAL + TTHR401VAL + TVAL_ESAV + TDEBT_CC + TVAL_RENT + TVAL_BANK + TVAL_OTH + TVAL_BUS + ESEX + TAGE + ERACE + EEDUC + TCEB + EHOWWELL + MEAN_TPEARN + CLWRK + OCC + TVAL_CHK + ESEX:TAGE, data=data[idx,], )
+  return(coef(fitted))
+}
+B = boot(data = training_data_contin,func,R=10)
+
+
+# coef_names <- names(OLS_transf_model)
+# coef_names <- names(OLS_transf_model$coefficients)
+# 
+
+# for (i in seq_along(coef_names)) {
+#   print(coef_names[i])
+#   print(boot.ci(boot.out = B, type = "perc", index = i))
+# }
+```
+
+
+
+
+```{r}
+rf_model <- randomForest(train_cont_y ~ ., data = training_data_contin, ntree = 500)
+rf_predictions <- predict(rf_model, training_data_contin)
+```
+
+```{r}
+rf_model_test <- randomForest(train_cont_y ~ ., data = training_data_contin, ntree = 6)
+rf_predictions_test <- predict(rf_model_test, training_data_contin)
+sqrt(mean((rf_predictions_test - train_cont_y)^2))
+```
+
+```{r}
+sqrt(mean((rf_predictions - train_cont_y)^2))
+```
+
+
+
+```{r}
+rf_test_predictions <- predict(rf_model, test_data_contin)
+# Calculate the mean squared error of the predictions for the random forest model on the test data
+sqrt(mean((rf_test_predictions - test_cont_y)^2))
+```
+
+
+
+```{r}
+# Calculate the mean squared error of the predictions for the random forest model
+sqrt(mean((rf_predictions - train_cont_y)^2))
+
+varImpPlot(rf_model)
+tuneRF(train_X, train_cont_y, stepFactor=.5, plot=TRUE)
+```
+
+
+```{r}
+decision_tree_model <- rpart(train_bin_y ~., data = training_data_classif, method = "class")
+# rpart.plot(decision_tree_model)
+decision_tree_model <- rpart(train_bin_y ~., data = training_data_classif, method = "class", cp = decision_tree_model$cptable[which.min(decision_tree_model$cptable[,"xerror"]),"CP"])
+
+rpart_predictions <- predict(decision_tree_model, newdata = training_data_classif, type = "prob")[,2]
+rpart_binary <- ifelse(rpart_predictions > .5, 1, 0)
+# rpart_binary_predictions <- ifelse(rpart_predictions > 0.5, 1, 0)
+# 
+confusionMatrix(table(rpart_binary, training_data_classif$train_bin_y))
+rpart.plot(decision_tree_model)
+```
+```{r}
+# plotcp(decision_tree_model)
+# printcp(decision_tree_model)
+print(roc(training_data_classif$train_bin_y, rpart_predictions)$auc)
+# naive bayes 
+# predictions
+```
+
+```{r}
+#find gbm optiaml trees parameter 
+optimal_trees <- gbm.perf(gbm_model, method = "cv")
+```
+
+
+
+```{r}
+gbm_model <- gbm(train_bin_y ~ ., data = training_data_classif, distribution = "bernoulli",
+                 n.trees = 690, interaction.depth = 3, shrinkage = 0.01, bag.fraction = 0.5)
+
+gbm_binary_predictions <- ifelse(predict(gbm_model, newdata = training_data_classif, type = "response") > 0.5, 1, 0)
+
+confusionMatrix(table(gbm_binary_predictions, training_data_classif$train_bin_y))
+```
+
+
+```{r}
+# print roc and importance
+roc(train_bin_y, gbm_binary_predictions)
+
+summary(gbm_model)$varimp
+```
+
+```{r}
+# COME BACK HERE
+roc_obj <- roc(predict(test_data_classif, predict(gbm_model, type = "response")))
+opt_threshold <- coords(roc_obj, "best", ret = "sensitivity")
+opt_threshold
+# gbm_test_binary_predictions <- ifelse(predict(gbm_model, newdata = test_data_classif, type = "response") > 0.4, 1, 0)
+# confusionMatrix(table(gbm_test_binary_predictions, test_data_classif$test_bin_y))
+```
+
+
+```{r}
+# train_X[!complete.cases(train_X), ]
+# model$xlevels <- Map(union, model$xlevels, lapply(training_data_contin[id], unique))
+train_preds <- predict(model, as.data.frame(cbind(train_cont_y,train_X)))
+# train_preds
+# sqrt(mean((train_cont_y - train_preds)^2))
+sqrt(mean((train_cont_y - train_preds)^2))
+```
+
+
+
+```{r}
+#                                     logistic_model
+training_data_classif <-  as.data.frame(cbind(train_bin_y,train_X))
+test_data_classif <-  as.data.frame(cbind(test_bin_y,test_X))
+
+
+logreg_model <- glm(train_bin_y ~., data = training_data_classif, family = binomial)
+
+# id <- sapplya(training_data_contin, is.prone)
+
+summary(logreg_model)
+
+```
+
+```{r}
+logreg_predictions <- predict(logreg_model, newdata = training_data_classif, type = "response")
+binary_predictions <- ifelse(logreg_predictions > 0.5, 1, 0)
+confusionMatrix(table(binary_predictions, training_data_classif$train_bin_y))
+print(roc(training_data_classif$train_bin_y, binary_predictions)$auc)
+```
+
+```{r}
+roc_curve <- roc(training_data_classif$train_bin_y, logreg_predictions)
+plot(roc_curve)
+```
+
+# a status flag with a value of 0 indicates not in universe, which means item did not meet criteria to get data
+# PNUM - a person's number 
+
+
+```{r}
+drive_auth(use_oob = TRUE, cache = TRUE)
+```
+
+```{r}
+test <- drive_find("pu2019.sas7bdat")
+```
+
+
+```{r}
+# drive_download(test)
+SIPP_selected_cols 
+```
+
+```{r}
+write.csv(SIPP_selected_cols, "/Users/vlad/Downloads/226dataframe.csv", row.names=FALSE)
+```
+
+```{r}
+SIPP_selected_cols <- read.csv("/Users/vlad/Downloads/226dataframe.csv")
+```
+
+Cross Validation
+```{r}
+cvFit(model, data = training_data_contin, y = training_data_contin$train_cont_y ,K = nrow(training_data_contin)-1, cost = mspe, seed = 1)
+
+```
+
+```{r}
+cvFit(log_transf_model, data = training_data_contin, y = training_data_contin$train_cont_y ,K = nrow(training_data_contin)-1, cost = mspe, seed = 1)
+```
+
+
+```{r}
+cvFit(rf_model, data = training_data_contin, y = training_data_contin$train_cont_y ,K = 100, cost = mspe, seed = 1)
+```
+
+```{r}
+cvFit(rf_model, data = training_data_contin, y = training_data_contin$train_cont_y ,K = 1000, cost = mspe, seed = 1)
+```
+
+```{r}
+cvFit(rf_model_test, data = training_data_contin, y = training_data_contin$train_cont_y ,K = 1000, cost = mspe, seed = 1)
+```
+
+
+
+```{r}
+sqrt(21944239705)
+sqrt(21862865178)
+sqrt(21427431684)
+```
+
+
+
+```{r}
+cor(training_data_contin$train_cont_y, training_data_contin$TVAL_BANK)
+```
+
+
