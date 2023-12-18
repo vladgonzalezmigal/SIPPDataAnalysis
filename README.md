@@ -1,2 +1,2 @@
 # SIPPDataAnalysis
-MSE 226 Final Project
+Projec Paradimga Data Analysis
