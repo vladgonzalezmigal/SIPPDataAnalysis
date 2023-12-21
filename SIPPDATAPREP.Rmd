@@ -8,8 +8,10 @@ library(tidyverse)
 library(data.table)
 ```
 
+Read in 2019 and 2022 datasets with selected columns
+
 ```{r}
-data <- fread("/Users/vlad/Downloads/pu2022.csv", sep = "|", select = c(
+SELECTED_COLS = c(
   # Survey Identification Variables
   "SSUID", "PNUM", "MONTHCODE", "ERELRPE", "THHLDSTATUS", 
   # Demographic + Socioeconomic Variables
@@ -25,13 +27,73 @@ data <- fread("/Users/vlad/Downloads/pu2022.csv", sep = "|", select = c(
    # Asset Ownership and Worth Variables 
   "TVAL_STMF", "TVAL_BUS", "TVAL_RENT", "TVAL_BANK", "TVAL_BOND","TVAL_HOME", "EOWN_IRAKEO", "EOWN_THR401",
   "EOWN_PENSION", "EOWN_MM", "EOWN_CD", "TVEH_NUM", "TIRAKEOVAL",
-  "TTHR401VAL", "OWN_STMF",
+  "TTHR401VAL", 
 	#The base weight
 	'WPFINWGT'
-))
+)
+
+colTypes = c('numeric','numeric','numeric','character','character','character', 'character','numeric',
+                     'numeric','character','character','character','character','character','character',
+                     'character', 'character','character','character','character','character','character',
+                     'character','character','character','character','character','character','character',
+                     'character','character','character','character','character','character','character',
+                     'character','character','character','character','character','character','character',
+                     'character','character','character','character','character','character','character',
+                     'character','character','character','character','character','numeric','character',
+                     'numeric','numeric','numeric','numeric','numeric','numeric','numeric','numeric',
+                     'numeric','numeric','numeric','numeric','numeric','numeric','character','character',
+                     'character','character','character','numeric','numeric','numeric','numeric')
+
+colClasses_named <- setNames(colTypes, SELECTED_COLS)
+
+data2019 <- fread("/Users/vlad/Downloads/pu2019.csv", sep = ",", select = SELECTED_COLS, colClasses = colClasses_named)
+data2022 <- fread("/Users/vlad/Downloads/pu2022.csv", sep = "|", select = SELECTED_COLS, colClasses = colClasses_named)
+
+```
+Combine datasets
+```{r}
+combined_data <- rbindlist(list(data2019, data2022))
+# make OWN_STMF variable
+```
+Cleaning Data
+  First we remove all people below 18 since they are not legally allowed to own stock.
+  We then remove all retired people as they are not of interest in this survey 
+  We then make Hispanic its own race by assigning it race code "5"
+  We then take averages on various income variables before grouping
+  each individual by their SSUID and PNUM to get one entry per person,
+  as apposed to entries for each month the interview was conducted per
+  person. 
+  Lastly we make stock ownership a binary variable as well as make any
+  empty values NA
+```{r}
+combined_data %>% 
+  filter(TAGE >= 18 & EEVERET != "1" & !is.na(TVAL_STMF)) %>% 
+  mutate(ERACE = ifelse(EORIGIN == "1", "5", ERACE)) %>%
+  mutate(MEAN_TPEARN = mean(TPEARN,na.rm = TRUE)) %>%
+  mutate(MEAN_TIRAKEOVAL = mean(TIRAKEOVAL,na.rm = TRUE)) %>%
+  mutate(MEAN_TTHR401VAL = mean(TTHR401VAL,na.rm = TRUE)) %>%
+  mutate(MEAN_TPTOTINC = mean(TPTOTINC,na.rm = TRUE)) %>%
+  mutate(MEAN_TINC_RENT = mean(TINC_RENT,na.rm = TRUE)) %>%
+  group_by(SSUID, PNUM) %>% 
+  slice_tail(n=1) %>% 
+  mutate(OWN_STMF = if_else(TVAL_STMF > 0, 1, 0)) %>% 
+  mutate(across(everything(), ~ ifelse(. == "", NA, .))) 
 ```
 
+Break up Dataset
 ```{r}
-data
+hispanic_data <- combined_data %>% 
+  filter(EORIGIN == "1")
+non_hispanic_data <- combined_data %>% 
+  filter(EORIGIN == "2")
 ```
+
+
+Write data out
+
+```{r}
+csv_file_path <- "/Users/vlad/Downloads/GitHub/SIPPDataAnalysis/CLEANEDSIPPDATA.csv"
+write.csv(combined_data, file = csv_file_path, row.names = FALSE)
+```
+
 
