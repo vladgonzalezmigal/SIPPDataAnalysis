@@ -1,0 +1,37 @@
+---
+title: "SIPPDATAPREP"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(data.table)
+```
+
+```{r}
+data <- fread("/Users/vlad/Downloads/pu2022.csv", sep = "|", select = c(
+  # Survey Identification Variables
+  "SSUID", "PNUM", "MONTHCODE", "ERELRPE", "THHLDSTATUS", 
+  # Demographic + Socioeconomic Variables
+  "EREFPAR", "ESEX", "TAGE", "TAGE_EHC", "ERACE", 
+  "EORIGIN", "EEDUC", "TLIVQTR", "ETENURE", "ESPEAK", "RAFEVER", "EMS", "EBORNUS", "ECITIZEN", "TYRENTRY",
+  "TIMSTAT", "TLANG1", "EHOWWELL", "TCEB", "TBORNPLACE", "ECERT", "EXMAR", "EVERDIV", "TRESDUR", "EED_SCRNR",
+  "EEDCRED", "RGED", "EEVERET", "TAGE_FB", "EAF_HHLD", "RLNGISOL", "RFAMKIND", "RFPERSONS", "RFRELU18",
+  "TEHC_REGION", "TEHC_ST", "TEHC_METRO", "EOTHSUPRT1YN", "EOTHSUPRT2YN", "EOTHSUPRT3YN", "EAWBSAFE",
+  "EPNSPOUSE", "EPNPAR1", "EPNPAR2", "EJB1_JBORSE", "EJB1_CLWRK", "EJB1_UNION", "TJB1_EMPALL", "TJB1_PVOTHRC",
+  # Income and Debt Variables
+  "RHLTHMTH", "TPEARN", "RSSI_MNYN", "EPRLOAN1RATE", "TRENTMORT", "TINC_RENT", "TDEBT_CC", "TDEBT_ED",
+  "TNETWORTH", "TVAL_RMU", "TPTOTINC", 
+   # Asset Ownership and Worth Variables 
+  "TVAL_STMF", "TVAL_BUS", "TVAL_RENT", "TVAL_BANK", "TVAL_BOND","TVAL_HOME", "EOWN_IRAKEO", "EOWN_THR401",
+  "EOWN_PENSION", "EOWN_MM", "EOWN_CD", "TVEH_NUM", "TIRAKEOVAL",
+  "TTHR401VAL", "OWN_STMF",
+	#The base weight
+	'WPFINWGT'
+))
+```
+
+```{r}
+data
+```
+
