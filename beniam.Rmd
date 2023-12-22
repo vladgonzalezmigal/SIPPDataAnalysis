@@ -1,0 +1,216 @@
+---
+title: "SIPPDATAPREP"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(data.table)
+```
+
+Read in 2019 and 2022 datasets with selected columns
+
+```{r}
+SELECTED_COLS = c(
+  # Survey Identification Variables
+  "SSUID", "PNUM", "MONTHCODE", "ERELRPE", "THHLDSTATUS", 
+  # Demographic + Socioeconomic Variables
+  "EREFPAR", "ESEX", "TAGE", "TAGE_EHC", "ERACE", 
+  "EORIGIN", "EEDUC", "TLIVQTR", "ETENURE", "ESPEAK", "RAFEVER", "EMS", "EBORNUS", "ECITIZEN", "TYRENTRY",
+  "TIMSTAT", "TLANG1", "EHOWWELL", "TCEB", "TBORNPLACE", "ECERT", "EXMAR", "EVERDIV", "TRESDUR", "EED_SCRNR",
+  "EEDCRED", "RGED", "EEVERET", "TAGE_FB", "EAF_HHLD", "RLNGISOL", "RFAMKIND", "RFPERSONS", "RFRELU18",
+  "TEHC_REGION", "TEHC_ST", "TEHC_METRO", "EOTHSUPRT1YN", "EOTHSUPRT2YN", "EOTHSUPRT3YN", "EAWBSAFE",
+  "EPNSPOUSE", "EPNPAR1", "EPNPAR2", "EJB1_JBORSE", "EJB1_CLWRK", "EJB1_UNION", "TJB1_EMPALL", "TJB1_PVOTHRC",
+  # Income and Debt Variables
+  "RHLTHMTH", "TPEARN", "RSSI_MNYN", "EPRLOAN1RATE", "TRENTMORT", "TINC_RENT", "TDEBT_CC", "TDEBT_ED",
+  "TNETWORTH", "TVAL_RMU", "TPTOTINC", 
+   # Asset Ownership and Worth Variables 
+  "TVAL_STMF", "TVAL_BUS", "TVAL_RENT", "TVAL_BANK", "TVAL_BOND","TVAL_HOME", "EOWN_IRAKEO", "EOWN_THR401",
+  "EOWN_PENSION", "EOWN_MM", "EOWN_CD", "TVEH_NUM", "TIRAKEOVAL",
+  "TTHR401VAL", 
+	#The base weight
+	'WPFINWGT'
+)
+
+colTypes = c('numeric','numeric','numeric','character','character','character', 'character','numeric',
+                     'numeric','character','character','character','character','character','character',
+                     'character', 'character','character','character','character','character','character',
+                     'character','character','character','character','character','character','character',
+                     'character','character','character','character','character','character','character',
+                     'character','character','character','character','character','character','character',
+                     'character','character','character','character','character','character','character',
+                     'character','character','character','character','character','numeric','character',
+                     'numeric','numeric','numeric','numeric','numeric','numeric','numeric','numeric',
+                     'numeric','numeric','numeric','numeric','numeric','numeric','character','character',
+                     'character','character','character','numeric','numeric','numeric','numeric')
+
+colClasses_named <- setNames(colTypes, SELECTED_COLS)
+
+data2019 <- fread("/Users/beniamosterloh/Downloads/pu2019.csv", sep = "|", select = SELECTED_COLS, colClasses = colClasses_named,na.strings=c("", "NA"))
+data2022 <- fread("/Users/beniamosterloh/Downloads/pu2022.csv", sep = "|", select = SELECTED_COLS, colClasses = colClasses_named,na.strings=c("","NA"))
+
+```
+Combine datasets
+```{r}
+combined_data <- rbindlist(list(data2019, data2022))
+# make OWN_STMF variable
+```
+Cleaning Data
+  First we remove all people below 18 since they are not legally allowed to own stock.
+  We then remove all retired people as they are not of interest in this survey 
+  We then make Hispanic its own race by assigning it race code "5"
+  We then take averages on various income variables before grouping
+  each individual by their SSUID and PNUM to get one entry per person,
+  as apposed to entries for each month the interview was conducted per
+  person. 
+  Lastly we make stock ownership a binary variable as well as make any
+  empty values NA
+  
+  Ben Notes: Here we also add TEHC_ST=06 to do a subfocus on the individuals from
+  California to examine IRA Ownership by income level for different races, or
+  more specifically, are Hispanics less likely to own investments like iras because
+  they are just less wealthy than white individuals, or are there other concurrent 
+  factors. To do this, after looking at our new combined data set, we will split
+  the data into multiple sections, using the median income of the united states
+  as a threshold to see if different races who make similar amounts of money
+  are still investing in things like iras.
+```{r}
+combined_data <- combined_data %>%
+  filter(TAGE >= 18, EEVERET != "1", !is.na(TVAL_STMF), TEHC_ST == "06") %>%
+  mutate(ERACE = ifelse(EORIGIN == "1", "5", ERACE),
+         MEAN_TPEARN = mean(TPEARN, na.rm = TRUE),
+         MEAN_TIRAKEOVAL = mean(TIRAKEOVAL, na.rm = TRUE),
+         MEAN_TTHR401VAL = mean(TTHR401VAL, na.rm = TRUE),
+         MEAN_TPTOTINC = mean(TPTOTINC, na.rm = TRUE),
+         MEAN_TINC_RENT = mean(TINC_RENT, na.rm = TRUE),
+         OWN_STMF = if_else(TVAL_STMF > 0, 1, 0)) %>%
+  group_by(SSUID, PNUM) %>%
+  slice_tail(n = 1) %>%
+  mutate(across(everything(), ~ ifelse(. == "", NA, .)))
+```
+
+
+```{r}
+# Calculate monthly median income
+median_income_us <- median(combined_data$TPTOTINC, na.rm = TRUE)
+lower_bracket_threshold <- 0.5 * median_income_us
+
+# Filter for individuals making 0-50% of the median income
+lower_income_individuals <- combined_data %>%
+  filter(TPTOTINC <= lower_bracket_threshold)
+
+# I relabeled each variable to make it easier to visualize
+ira_ownership_by_race_income <- lower_income_individuals %>%
+  mutate(Race = case_when(
+    ERACE == "1" ~ "White",
+    ERACE == "2" ~ "Black",
+    ERACE == "3" ~ "Asian",
+    ERACE == "4" ~ "Other",
+    ERACE == "5" ~ "Hispanic" # Assuming '5' is the code used for Hispanic
+  )) %>%
+  group_by(Race) %>%
+  summarise(IRA_Ownership = mean(EOWN_IRAKEO == "1", na.rm = TRUE))
+
+ira_ownership_by_race_income
+
+#We can see that even for individuals making similar amounts, whites dominate 
+#when it comes to ira ownership, meaning other races like hispanic are clearly
+#investing in other places. Lets also examine for higher income brackets.
+
+# Define the upper bracket threshold as 100% of the median income
+upper_bracket_threshold <- median_income_us
+
+# Filter for individuals making 50-100% of the median income
+middle_income_individuals <- combined_data %>%
+  filter(TPTOTINC > lower_bracket_threshold, TPTOTINC <= upper_bracket_threshold)
+
+# Analyze IRA ownership by race for middle income bracket
+ira_ownership_middle_income <- middle_income_individuals %>%
+  mutate(Race = case_when(
+    ERACE == "1" ~ "White",
+    ERACE == "2" ~ "Black",
+    ERACE == "3" ~ "Asian",
+    ERACE == "4" ~ "Other",
+    ERACE == "5" ~ "Hispanic" # Ensure this code matches your dataset
+  )) %>%
+  group_by(Race) %>%
+  summarise(IRA_Ownership = mean(EOWN_IRAKEO == "1", na.rm = TRUE))
+
+ira_ownership_middle_income
+
+#We see a similar trend for hispanics also making up to the median income.
+
+#Now I would like to see how this pans out for hispanics making over the median.
+#Maybe when people have more money, it is because they have more knowledge and
+#and invest their money in different places.
+
+# Filter for individuals making 100-150% of the median income
+upper_middle_income_individuals <- combined_data %>%
+  filter(TPTOTINC > median_income_us, TPTOTINC <= upper_middle_threshold)
+
+# Analyze IRA ownership by race for the 100-150% income bracket
+ira_ownership_upper_middle <- upper_middle_income_individuals %>%
+  mutate(Race = case_when(
+    ERACE == "1" ~ "White",
+    ERACE == "2" ~ "Black",
+    ERACE == "3" ~ "Asian",
+    ERACE == "4" ~ "Other",
+    ERACE == "5" ~ "Hispanic"
+  )) %>%
+  group_by(Race) %>%
+  summarise(IRA_Ownership = mean(EOWN_IRAKEO == "1", na.rm = TRUE))
+
+ira_ownership_upper_middle
+
+
+
+#Filter for individuals making 150-200% of the median income
+high_income_individuals <- combined_data %>%
+  filter(TPTOTINC > upper_middle_threshold, TPTOTINC <= high_income_threshold)
+
+# Analyze IRA ownership by race for the 150-200% income bracket
+ira_ownership_high_income <- high_income_individuals %>%
+  mutate(Race = case_when(
+    ERACE == "1" ~ "White",
+    ERACE == "2" ~ "Black",
+    ERACE == "3" ~ "Asian",
+    ERACE == "4" ~ "Other",
+    ERACE == "5" ~ "Hispanic"
+  )) %>%
+  group_by(Race) %>%
+  summarise(IRA_Ownership = mean(EOWN_IRAKEO == "1", na.rm = TRUE))
+
+ira_ownership_high_income
+#As income goes up, we can see that whites are still very high but hispanics are
+#now not the lowest in the state of California.
+```
+
+
+
+Break up Dataset
+```{r}
+# hispanic_data <- combined_data %>% 
+#   filter(EORIGIN == "1")
+# non_hispanic_data <- combined_data %>% 
+#   filter(EORIGIN == "2")
+```
+
+
+```{r}
+
+```
+
+
+
+
+
+
+
+Write data out
+
+```{r}
+csv_file_path <- "/Users/vlad/Downloads/GitHub/SIPPDataAnalysis/CLEANEDSIPPDATA.csv"
+write.csv(combined_data, file = csv_file_path, row.names = FALSE)
+```
+
+
