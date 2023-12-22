@@ -76,7 +76,7 @@ Cleaning Data
   are still investing in things like iras.
 ```{r}
 combined_data <- combined_data %>%
-  filter(TAGE >= 18, EEVERET != "1", !is.na(TVAL_STMF), TEHC_ST == "06") %>%
+  filter(TAGE >= 18, EEVERET != "1", !is.na(TVAL_STMF),) %>%
   mutate(ERACE = ifelse(EORIGIN == "1", "5", ERACE),
          MEAN_TPEARN = mean(TPEARN, na.rm = TRUE),
          MEAN_TIRAKEOVAL = mean(TIRAKEOVAL, na.rm = TRUE),
@@ -183,16 +183,27 @@ ira_ownership_high_income <- high_income_individuals %>%
 ira_ownership_high_income
 #As income goes up, we can see that whites are still very high but hispanics are
 #now not the lowest in the state of California.
+
+
 ```
 
+```{r}
+
+```
 
 
 Break up Dataset
 ```{r}
-# hispanic_data <- combined_data %>% 
-#   filter(EORIGIN == "1")
-# non_hispanic_data <- combined_data %>% 
-#   filter(EORIGIN == "2")
+hispanic_data <- combined_data %>% 
+   filter(EORIGIN == "1")
+non_hispanic_data <- combined_data %>% 
+filter(EORIGIN == "2")
+
+hispanic_counts_by_state <- combined_data %>%
+  filter(EORIGIN == "1") %>%  # Assuming '1' indicates Hispanic origin
+  group_by(TEHC_ST) %>%
+  count() 
+
 ```
 
 
