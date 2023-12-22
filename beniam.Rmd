@@ -76,7 +76,7 @@ Cleaning Data
   are still investing in things like iras.
 ```{r}
 combined_data <- combined_data %>%
-  filter(TAGE >= 18, EEVERET != "1", !is.na(TVAL_STMF),) %>%
+  filter(TAGE >= 18, EEVERET != "1", !is.na(TVAL_STMF), TEHC_ST == "06") %>%
   mutate(ERACE = ifelse(EORIGIN == "1", "5", ERACE),
          MEAN_TPEARN = mean(TPEARN, na.rm = TRUE),
          MEAN_TIRAKEOVAL = mean(TIRAKEOVAL, na.rm = TRUE),
@@ -87,6 +87,7 @@ combined_data <- combined_data %>%
   group_by(SSUID, PNUM) %>%
   slice_tail(n = 1) %>%
   mutate(across(everything(), ~ ifelse(. == "", NA, .)))
+
 ```
 
 
@@ -100,7 +101,7 @@ lower_income_individuals <- combined_data %>%
   filter(TPTOTINC <= lower_bracket_threshold)
 
 # I relabeled each variable to make it easier to visualize
-ira_ownership_by_race_income <- lower_income_individuals %>%
+ira_ownership_by_race_low_income <- lower_income_individuals %>%
   mutate(Race = case_when(
     ERACE == "1" ~ "White",
     ERACE == "2" ~ "Black",
@@ -111,7 +112,7 @@ ira_ownership_by_race_income <- lower_income_individuals %>%
   group_by(Race) %>%
   summarise(IRA_Ownership = mean(EOWN_IRAKEO == "1", na.rm = TRUE))
 
-ira_ownership_by_race_income
+ira_ownership_by_race_low_income
 
 #We can see that even for individuals making similar amounts, whites dominate 
 #when it comes to ira ownership, meaning other races like hispanic are clearly
@@ -183,6 +184,10 @@ ira_ownership_high_income <- high_income_individuals %>%
 ira_ownership_high_income
 #As income goes up, we can see that whites are still very high but hispanics are
 #now not the lowest in the state of California.
+
+#Overall, more individuals invest in iras for hispanics in california as income
+#goes up, and even controlling for income hispanics are investing at very low
+#rates.
 
 
 ```
